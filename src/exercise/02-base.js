@@ -10,13 +10,15 @@ import {
   PokemonErrorBoundary,
 } from '../pokemon'
 
-function useAsync() {
+function useAsync(asyncCallback) {
   const [state, dispatch] = React.useReducer(asyncReducer, {
     status: 'idle',
     data: null,
     error: null,
   })
-  const run = React.useCallback(promise => {
+
+  React.useEffect(() => {
+    const promise = asyncCallback()
     if (!promise) {
       return
     }
@@ -29,8 +31,9 @@ function useAsync() {
         dispatch({type: 'rejected', error})
       },
     )
-  }, [])
-  return {...state, run}
+  }, [asyncCallback])
+
+  return state
 }
 
 function asyncReducer(state, action) {
@@ -57,16 +60,17 @@ function PokemonInfo({pokemonName}) {
   // comment really quick if you don't want the spoiler)!
   // function useAsync(asyncCallback, dependencies) {/* code in here */}
 
-  // 🐨 here's how you'll use the new useAsync hook you're writing:
-  const {data: pokemon, status, error, run} = useAsync()
-
-  React.useEffect(() => {
+  const asyncCallback = React.useCallback(() => {
     if (!pokemonName) {
       return
     }
-    const pokemonPromise = fetchPokemon(pokemonName)
-    run(pokemonPromise)
-  }, [pokemonName, run])
+    return fetchPokemon(pokemonName)
+  }, [pokemonName])
+
+  // 🐨 here's how you'll use the new useAsync hook you're writing:
+  const state = useAsync(asyncCallback)
+  // 🐨 this will change from "pokemon" to "data"
+  const {data: pokemon, status, error} = state
 
   switch (status) {
     case 'idle':
@@ -119,6 +123,7 @@ function AppWithUnmountCheckbox() {
         Mount Component
       </label>
       <hr />
+      <div>BASE</div>
       {mountApp ? <App /> : null}
     </div>
   )

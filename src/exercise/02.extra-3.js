@@ -10,13 +10,35 @@ import {
   PokemonErrorBoundary,
 } from '../pokemon'
 
-function useAsync() {
-  const [state, dispatch] = React.useReducer(asyncReducer, {
+function useSafeDispatch(dispatch) {
+  const mountedRef = React.useRef(false)
+  React.useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  return React.useCallback(
+    (...args) => {
+      if (mountedRef.current) {
+        dispatch(...args)
+      }
+    },
+    [dispatch],
+  )
+}
+
+function useAsync(asyncCallback) {
+  const [state, unsafeDispatch] = React.useReducer(asyncReducer, {
     status: 'idle',
     data: null,
     error: null,
   })
-  const run = React.useCallback(promise => {
+  const dispatch = useSafeDispatch(unsafeDispatch)
+
+  React.useEffect(() => {
+    const promise = asyncCallback()
     if (!promise) {
       return
     }
@@ -29,8 +51,9 @@ function useAsync() {
         dispatch({type: 'rejected', error})
       },
     )
-  }, [])
-  return {...state, run}
+  }, [asyncCallback, dispatch])
+
+  return state
 }
 
 function asyncReducer(state, action) {
@@ -51,22 +74,15 @@ function asyncReducer(state, action) {
 }
 
 function PokemonInfo({pokemonName}) {
-  // 🐨 move all the code between the lines into a new useAsync function.
-  // 💰 look below to see how the useAsync hook is supposed to be called
-  // 💰 If you want some help, here's the function signature (or delete this
-  // comment really quick if you don't want the spoiler)!
-  // function useAsync(asyncCallback, dependencies) {/* code in here */}
-
-  // 🐨 here's how you'll use the new useAsync hook you're writing:
-  const {data: pokemon, status, error, run} = useAsync()
-
-  React.useEffect(() => {
+  const asyncCallback = React.useCallback(() => {
     if (!pokemonName) {
       return
     }
-    const pokemonPromise = fetchPokemon(pokemonName)
-    run(pokemonPromise)
-  }, [pokemonName, run])
+    return fetchPokemon(pokemonName)
+  }, [pokemonName])
+
+  const state = useAsync(asyncCallback)
+  const {data: pokemon, status, error} = state
 
   switch (status) {
     case 'idle':
